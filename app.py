@@ -8,15 +8,16 @@ import urllib.parse
 # --- CONFIGURATION ---
 st.set_page_config(page_title="ArchiroData CRM", layout="wide", page_icon="⚡")
 
-# --- STYLE CSS (Mode Clair Force) ---
+# --- STYLE CSS (Tableaux compacts et lisibles) ---
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff !important; color: #1f1f1f !important; }
     [data-testid="stSidebar"] { background-color: #f8f9fa !important; border-right: 1px solid #dee2e6; }
     [data-testid="stSidebar"] * { color: #1f1f1f !important; }
-    .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; }
-    div[data-testid="stMetric"] { background-color: #fff; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    /* Style pour rendre le tableau plus "Excel" */
+    [data-testid="stDataFrame"] { border: 1px solid #e0e0e0; border-radius: 5px; }
     h1, h2, h3 { color: #1f1f1f; }
+    .stSuccess { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -38,45 +39,48 @@ def get_client():
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     return gspread.authorize(creds)
 
-# Chargement de la base principale (Lecture seule)
-@st.cache_data(ttl=300)
-def load_base_data():
+@st.cache_data(ttl=60) # Rafraîchissement rapide (1 min) pour voir les changements
+def load_all_data():
     try:
         client = get_client()
-        sheet = client.open("Data_Prospection_Energie").sheet1
-        vals = sheet.get_all_values()
-        if len(vals) > 1:
-            df = pd.DataFrame(vals[1:], columns=vals[0])
-            return df
-        return pd.DataFrame()
-    except: return pd.DataFrame()
+        ss = client.open("Data_Prospection_Energie")
+        
+        # 1. Base Leads
+        df_leads = pd.DataFrame(ss.sheet1.get_all_values()[1:], columns=ss.sheet1.get_all_values()[0])
+        
+        # 2. Historique Appels (Suivi)
+        try: 
+            suivi_vals = ss.worksheet("Suivi_Commerciaux").get_all_values()
+            df_suivi = pd.DataFrame(suivi_vals[1:], columns=suivi_vals[0])
+        except: df_suivi = pd.DataFrame(columns=["Nom Entreprise", "Statut"])
+            
+        # 3. Dossiers Factures
+        try:
+            fact_vals = ss.worksheet("Donnees_Factures").get_all_values()
+            df_factures = pd.DataFrame(fact_vals[1:], columns=fact_vals[0])
+        except: df_factures = pd.DataFrame(columns=["Client", "Etat_Dossier"])
+            
+        return df_leads, df_suivi, df_factures
+    except: return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-# Sauvegarde d'une action (Appel, Statut)
 def save_interaction(commercial, entreprise, ville, statut, note, contact_nom, contact_email):
     try:
         client = get_client()
-        # On essaie d'ouvrir l'onglet, s'il n'existe pas on le crée
         try: sheet = client.open("Data_Prospection_Energie").worksheet("Suivi_Commerciaux")
         except: sheet = client.open("Data_Prospection_Energie").add_worksheet("Suivi_Commerciaux", 1000, 10)
-        
         row = [str(datetime.now()), commercial, entreprise, ville, statut, note, contact_nom, contact_email]
         sheet.append_row(row)
         return True
-    except Exception as e:
-        st.error(f"Erreur sauvegarde : {e}")
-        return False
+    except: return False
 
-# Sauvegarde des données factures
-def save_facture(commercial, client_nom, hiver_kwh, ete_kwh, hiver_eur, ete_eur, a_facture):
+def save_facture(commercial, client_nom, hiv_kwh, ete_kwh, hiv_eur, ete_eur, a_facture):
     try:
         client = get_client()
         try: sheet = client.open("Data_Prospection_Energie").worksheet("Donnees_Factures")
         except: sheet = client.open("Data_Prospection_Energie").add_worksheet("Donnees_Factures", 1000, 10)
-        
-        # On note "OUI" si un fichier a été joint, sinon "NON"
         facture_recue = "OUI (PDF)" if a_facture else "NON"
-        
-        row = [commercial, client_nom, hiver_kwh, ete_kwh, hiver_eur, ete_eur, str(datetime.now()), facture_recue]
+        # On ajoute "En cours" par défaut dans la colonne Etat_Dossier
+        row = [commercial, client_nom, hiver_kwh, ete_kwh, hiv_eur, ete_eur, str(datetime.now()), facture_recue, "En cours"]
         sheet.append_row(row)
         return True
     except: return False
@@ -105,181 +109,215 @@ if not st.session_state.logged_in:
 
 # --- INTERFACE PRINCIPALE ---
 user = st.session_state.user
+df_leads, df_suivi, df_factures = load_all_data()
+
+# Préparation des données croisées (Merge)
+# On ajoute le "Dernier Statut" à la base des leads pour l'affichage
+if not df_leads.empty and not df_suivi.empty:
+    # On prend le dernier statut connu pour chaque entreprise
+    last_status = df_suivi.drop_duplicates(subset=['Nom Entreprise'], keep='last')[['Nom Entreprise', 'Statut']]
+    df_leads = df_leads.merge(last_status, left_on='Nom', right_on='Nom Entreprise', how='left').drop(columns=['Nom Entreprise'])
+    df_leads['Statut'] = df_leads['Statut'].fillna('Nouveau') # Si pas d'appel, c'est "Nouveau"
 
 # Sidebar
 with st.sidebar:
     st.markdown(f"### 👤 {user.upper()}")
-    menu_options = ["📞 Prospection (Appels)", "📂 Mon Portefeuille", "📊 Stats Perso"]
-    if user == "admin": menu_options.append("⚙️ Admin")
     
-    menu = st.radio("Navigation", menu_options)
+    # Menu Pipeline
+    st.write("---")
+    menu = st.radio("Pipeline de Vente", [
+        "1️⃣ Prospection (Tout)", 
+        "2️⃣ À Rappeler (Urgent)", 
+        "3️⃣ Dossiers à Remplir", 
+        "4️⃣ Dossiers En Cours / Validés"
+    ])
     
-    st.markdown("---")
+    st.write("---")
+    if st.button("Rafraîchir les données"):
+        st.cache_data.clear()
+        st.rerun()
     if st.button("Déconnexion"):
         st.session_state.logged_in = False
         st.rerun()
 
-# --- 1. PROSPECTION (La Chasse) ---
-if menu == "📞 Prospection (Appels)":
-    st.subheader("🎯 Session de Prospection")
-    df = load_base_data()
-    
-    if not df.empty:
+# ==============================================================================
+# 1️⃣ PROSPECTION (Tableau Global)
+# ==============================================================================
+if menu == "1️⃣ Prospection (Tout)":
+    st.subheader("📞 Liste Globale de Prospection")
+    st.caption("Cliquez sur une ligne pour ouvrir le rapport d'appel.")
+
+    if not df_leads.empty:
+        # Filtres
         c1, c2 = st.columns(2)
-        # Gestion sécurisée des listes déroulantes
-        villes = sorted(df['Ville'].unique().tolist()) if 'Ville' in df.columns else []
-        secteurs = sorted(df['Secteur'].unique().tolist()) if 'Secteur' in df.columns else []
+        filtre_ville = c1.selectbox("Filtrer par Ville", ["Toutes"] + sorted(df_leads['Ville'].unique()))
+        filtre_secteur = c2.selectbox("Filtrer par Secteur", ["Tous"] + sorted(df_leads['Secteur'].unique()))
         
-        ville = c1.selectbox("Choisir une Ville", ["Toutes"] + villes)
-        secteur = c2.selectbox("Choisir un Secteur", ["Tous"] + secteurs)
+        # Application filtres
+        df_show = df_leads.copy()
+        if filtre_ville != "Toutes": df_show = df_show[df_show['Ville'] == filtre_ville]
+        if filtre_secteur != "Tous": df_show = df_show[df_show['Secteur'] == filtre_secteur]
         
-        # Filtrage
-        mask = pd.Series([True] * len(df))
-        if ville != "Toutes": mask &= (df['Ville'] == ville)
-        if secteur != "Tous": mask &= (df['Secteur'] == secteur)
-        filtered = df[mask]
+        # TABLEAU INTERACTIF
+        # on_select="rerun" permet de recharger la page quand on clique, selection_mode="single-row" pour une seule ligne
+        event = st.dataframe(
+            df_show,
+            use_container_width=True,
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            height=400
+        )
         
-        st.info(f"**{len(filtered)} leads correspondants**")
-        
-        # Affichage Lead par Lead (Plus focus que le tableau)
-        if len(filtered) > 0:
-            # Création d'une liste unique pour la sélection
-            lead_options = filtered.apply(lambda x: f"{x.get('Nom', 'Inconnu')} ({x.get('Ville', '?')})", axis=1).tolist()
-            selected_lead_name = st.selectbox("Sélectionner une entreprise à appeler :", lead_options)
+        # SI UNE LIGNE EST SÉLECTIONNÉE
+        if len(event.selection.rows) > 0:
+            idx = event.selection.rows[0]
+            lead = df_show.iloc[idx]
             
-            # Récupérer les infos du lead choisi
-            lead = filtered.iloc[lead_options.index(selected_lead_name)]
+            st.markdown("---")
+            st.markdown(f"### 📞 Action : {lead['Nom']}")
             
-            with st.container(border=True):
-                c_info, c_action = st.columns([1, 1])
+            col_g, col_d = st.columns([1, 2])
+            
+            with col_g:
+                st.info(f"""
+                **Détails:**
+                📍 {lead['Adresse']}
+                📞 {lead['Téléphone']} / 📱 {lead['Mobile']}
                 
-                with c_info:
-                    st.markdown(f"### 🏢 {lead.get('Nom', 'N/A')}")
-                    st.markdown(f"📍 **Adresse:** {lead.get('Adresse', 'N/A')}")
-                    st.markdown(f"📞 **Téléphone:** `{lead.get('Téléphone', 'N/A')}`")
-                    st.markdown(f"📱 **Mobile:** `{lead.get('Mobile', 'N/A')}`")
+                **Statut Actuel:** {lead.get('Statut', 'Nouveau')}
+                """)
+            
+            with col_d:
+                with st.form("call_form"):
+                    st.write("Rapport d'appel :")
+                    new_statut = st.radio("Résultat", ["⏳ En attente", "✅ Positif (Dossier à faire)", "❌ Négatif", "📵 Pas de réponse", "⏰ A rappeler"], horizontal=True)
+                    note = st.text_area("Notes", placeholder="Détails de l'échange...")
+                    contact = st.text_input("Nom Contact")
+                    email = st.text_input("Email Contact")
                     
-                    # Bouton d'action rapide Mail
-                    email_dest = lead.get('Site Web', '') # Simplification
-                    subject = urllib.parse.quote("Question sur vos contrats énergie")
-                    body = urllib.parse.quote("Bonjour,\n\nJe souhaiterais échanger avec vous...")
-                    st.markdown(f"[✉️ Ouvrir Email pré-rempli](mailto:?subject={subject}&body={body})", unsafe_allow_html=True)
+                    if st.form_submit_button("💾 Enregistrer"):
+                        if save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, contact, email):
+                            st.success("Enregistré ! Le statut sera mis à jour.")
+                            st.cache_data.clear() # Force le rechargement pour voir le nouveau statut
+                        else:
+                            st.error("Erreur technique")
 
-                with c_action:
-                    st.markdown("### 📝 Rapport d'appel")
-                    with st.form("log_call"):
-                        statut = st.radio("Résultat :", ["⏳ En attente", "✅ Positif (Intéressé)", "❌ Négatif", "📵 Pas de réponse"], horizontal=True)
-                        note = st.text_area("Commentaire", placeholder="Ex: A rappelé mardi...", height=80)
-                        
-                        st.markdown("**Si Positif, noter le contact :**")
-                        c1, c2 = st.columns(2)
-                        c_nom = c1.text_input("Nom Décideur")
-                        c_mail = c2.text_input("Email Décideur")
-                        
-                        if st.form_submit_button("💾 Sauvegarder"):
-                            if save_interaction(user, lead.get('Nom'), lead.get('Ville'), statut, note, c_nom, c_mail):
-                                st.success("Enregistré !")
-                            else:
-                                st.error("Erreur technique.")
-
-# --- 2. MON PORTEFEUILLE (Le Suivi) ---
-elif menu == "📂 Mon Portefeuille":
-    st.subheader("💼 Mes Dossiers Gagnés")
+# ==============================================================================
+# 2️⃣ À RAPPELER (Filtre intelligent)
+# ==============================================================================
+elif menu == "2️⃣ À Rappeler (Urgent)":
+    st.subheader("⏰ Liste de Rappel")
+    st.caption("Prospects marqués comme 'Pas de réponse' ou 'A rappeler'.")
     
-    # On charge l'historique depuis la Google Sheet 'Suivi_Commerciaux'
-    try:
-        client = get_client()
-        sheet_suivi = client.open("Data_Prospection_Energie").worksheet("Suivi_Commerciaux")
-        data_suivi = sheet_suivi.get_all_records()
-        df_suivi = pd.DataFrame(data_suivi)
-    except:
-        df_suivi = pd.DataFrame()
-
-    if not df_suivi.empty:
-        # Filtrer pour voir uniquement les clients de CE commercial
-        if 'Commercial' in df_suivi.columns:
-            my_leads = df_suivi[df_suivi['Commercial'] == user]
-            # Garder seulement les Positifs ou En attente
-            active_leads = my_leads[my_leads['Statut'].isin(["✅ Positif (Intéressé)", "⏳ En attente"])]
+    # On filtre les leads qui ont le statut NRP ou A rappeler
+    if not df_leads.empty:
+        df_rappel = df_leads[df_leads['Statut'].isin(["📵 Pas de réponse", "⏰ A rappeler", "⏳ En attente"])]
+        
+        if df_rappel.empty:
+            st.success("Rien à rappeler pour le moment ! Bon travail.")
+        else:
+            event = st.dataframe(
+                df_rappel,
+                use_container_width=True,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row"
+            )
             
-            st.write(f"Vous avez {len(active_leads)} dossiers à traiter.")
-            
-            if len(active_leads) > 0:
-                client_choisi = st.selectbox("Sélectionner un dossier pour Facturation :", active_leads['Nom Entreprise'].unique())
+            if len(event.selection.rows) > 0:
+                idx = event.selection.rows[0]
+                lead = df_rappel.iloc[idx]
                 
                 st.markdown("---")
-                st.markdown(f"### ⚡ Saisie Factures : {client_choisi}")
+                st.markdown(f"### 🔁 Rappel : {lead['Nom']}")
+                with st.form("rappel_form"):
+                    new_statut = st.radio("Nouveau Résultat", ["✅ Positif (Dossier à faire)", "❌ Négatif", "📵 Toujours pas de réponse"], horizontal=True)
+                    note = st.text_input("Nouvelle note")
+                    if st.form_submit_button("Mettre à jour"):
+                        save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, "", "")
+                        st.success("Mis à jour !")
+                        st.cache_data.clear()
+
+# ==============================================================================
+# 3️⃣ DOSSIERS À REMPLIR (Les Positifs)
+# ==============================================================================
+elif menu == "3️⃣ Dossiers à Remplir":
+    st.subheader("📝 Création de Dossiers (Facturation)")
+    st.caption("Liste des prospects 'Positifs' qui n'ont pas encore de dossier complet.")
+    
+    # Logique : On prend les "Positifs" DANS LE SUIVI, et on enlève ceux qui sont DÉJÀ dans FACTURES
+    if not df_suivi.empty:
+        # 1. Tous les positifs
+        positifs = df_suivi[df_suivi['Statut'].str.contains("Positif", case=False, na=False)]
+        
+        # 2. On enlève ceux qui sont déjà traités (dans df_factures)
+        if not df_factures.empty:
+            deja_fait = df_factures['Client'].unique().tolist()
+            a_faire = positifs[~positifs['Nom Entreprise'].isin(deja_fait)]
+        else:
+            a_faire = positifs
+            
+        # On dédoublonne (si appelé 2 fois positif)
+        a_faire = a_faire.drop_duplicates(subset=['Nom Entreprise'])
+        
+        if a_faire.empty:
+            st.info("Aucun prospect positif en attente de dossier.")
+        else:
+            event = st.dataframe(
+                a_faire[['Date', 'Nom Entreprise', 'Ville', 'Note']],
+                use_container_width=True,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row"
+            )
+            
+            if len(event.selection.rows) > 0:
+                idx = event.selection.rows[0]
+                client = a_faire.iloc[idx]
+                nom_client = client['Nom Entreprise']
                 
-                with st.form("facture_form"):
+                st.markdown("---")
+                st.markdown(f"### ⚡ Saisie du dossier : {nom_client}")
+                
+                with st.form("dossier_form"):
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.markdown("❄️ **Hiver**")
-                        hiv_kwh = st.text_input("Conso Hiver (kWh)")
-                        hiv_eur = st.text_input("Montant Hiver (€)")
+                        hiv_kwh = st.text_input("Hiver kWh")
+                        hiv_eur = st.text_input("Hiver €")
                     with c2:
-                        st.markdown("☀️ **Été**")
-                        ete_kwh = st.text_input("Conso Été (kWh)")
-                        ete_eur = st.text_input("Montant Été (€)")
+                        ete_kwh = st.text_input("Eté kWh")
+                        ete_eur = st.text_input("Eté €")
                     
-                    st.markdown("---")
-                    st.markdown("**📄 Pièce Jointe**")
-                    uploaded_file = st.file_uploader("Joindre la facture (PDF/Image)", type=['pdf', 'png', 'jpg', 'jpeg'])
+                    uploaded_file = st.file_uploader("Facture PDF (Optionnel)", type=['pdf', 'jpg', 'png'])
                     
-                    if st.form_submit_button("Valider le dossier"):
-                        # On vérifie si un fichier est présent
+                    if st.form_submit_button("✅ Valider le Dossier"):
                         has_file = uploaded_file is not None
-                        
-                        if save_facture(user, client_choisi, hiv_kwh, ete_kwh, hiv_eur, ete_eur, has_file):
+                        if save_facture(user, nom_client, hiv_kwh, ete_kwh, hiv_eur, ete_eur, has_file):
                             st.balloons()
-                            st.success(f"Données enregistrées pour {client_choisi} !")
-                            if has_file:
-                                st.info("✅ Fichier PDF bien reçu (Transmis à l'admin)")
+                            st.success(f"Dossier {nom_client} envoyé en 'En Cours' !")
+                            st.cache_data.clear() # Le client va disparaitre de cette liste et aller dans "En cours"
                         else:
-                            st.error("Erreur de sauvegarde.")
-        else:
-            st.warning("Structure du fichier 'Suivi_Commerciaux' incorrecte.")
-    else:
-        st.info("Aucun historique. Allez dans l'onglet 'Prospection' pour commencer.")
+                            st.error("Erreur")
 
-# --- 3. STATS ---
-elif menu == "📊 Stats Perso":
-    st.subheader("📈 Mes Performances")
-    try:
-        client = get_client()
-        sheet_suivi = client.open("Data_Prospection_Energie").worksheet("Suivi_Commerciaux")
-        df_stats = pd.DataFrame(sheet_suivi.get_all_records())
+# ==============================================================================
+# 4️⃣ DOSSIERS EN COURS / VALIDÉS
+# ==============================================================================
+elif menu == "4️⃣ Dossiers En Cours / Validés":
+    st.subheader("🚀 Suivi des Dossiers")
+    
+    if not df_factures.empty:
+        # Onglets pour séparer En cours / Validé
+        tab1, tab2 = st.tabs(["⏳ En Cours", "✅ Validés"])
         
-        if not df_stats.empty and 'Commercial' in df_stats.columns:
-            my_stats = df_stats[df_stats['Commercial'] == user]
+        with tab1:
+            encours = df_factures[df_factures['Etat_Dossier'] == "En cours"]
+            if encours.empty: st.info("Aucun dossier en attente.")
+            else: st.dataframe(encours, use_container_width=True)
             
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Appels Totaux", len(my_stats))
-            
-            positifs = len(my_stats[my_stats['Statut'] == "✅ Positif (Intéressé)"])
-            col2.metric("Leads Gagnés", positifs)
-            
-            ratio = round((positifs / len(my_stats) * 100), 1) if len(my_stats) > 0 else 0
-            col3.metric("Taux de Transformation", f"{ratio}%")
-            
-            st.markdown("### 🗓️ Historique récent")
-            st.dataframe(my_stats.tail(10), use_container_width=True)
-        else:
-            st.write("Pas de données disponibles.")
-            
-    except Exception as e:
-        st.write("Chargement des stats...")
-
-# --- ADMIN ---
-elif menu == "⚙️ Admin":
-    st.title("Administration")
-    st.write("Module d'import (réservé admin)")
-    uploaded_file = st.file_uploader("Importer CSV", type="csv")
-    if uploaded_file and st.button("Mettre à jour la base"):
-        try:
-            client = get_client()
-            sheet = client.open("Data_Prospection_Energie").sheet1
-            df_new = pd.read_csv(uploaded_file).fillna("N/A")
-            sheet.clear()
-            sheet.update('A1', [df_new.columns.values.tolist()] + df_new.values.tolist())
-            st.success("Base mise à jour !")
-        except Exception as e: st.error(f"Erreur : {e}")
+        with tab2:
+            valides = df_factures[df_factures['Etat_Dossier'] == "Validé"] # Tu devras écrire "Validé" manuellement dans le sheet pour qu'ils arrivent ici
+            if valides.empty: st.info("Aucun dossier validé pour l'instant.")
+            else: st.dataframe(valides, use_container_width=True)
+    else:
+        st.write("Aucun dossier enregistré.")
