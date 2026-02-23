@@ -76,14 +76,20 @@ def save_interaction(commercial, entreprise, ville, statut, note, contact_nom, c
 def save_facture(commercial, client_nom, hiv_kwh, ete_kwh, hiv_eur, ete_eur, a_facture):
     try:
         client = get_client()
-        try: sheet = client.open("Data_Prospection_Energie").worksheet("Donnees_Factures")
-        except: sheet = client.open("Data_Prospection_Energie").add_worksheet("Donnees_Factures", 1000, 10)
+        try: 
+            sheet = client.open("Data_Prospection_Energie").worksheet("Donnees_Factures")
+        except: 
+            sheet = client.open("Data_Prospection_Energie").add_worksheet("Donnees_Factures", 1000, 10)
+        
         facture_recue = "OUI (PDF)" if a_facture else "NON"
-        # On ajoute "En cours" par défaut dans la colonne Etat_Dossier
-        row = [commercial, client_nom, hiver_kwh, ete_kwh, hiv_eur, ete_eur, str(datetime.now()), facture_recue, "En cours"]
+        
+        # CORRECTION : Utilisation de "hiv_kwh" et non "hiver_kwh"
+        row = [commercial, client_nom, hiv_kwh, ete_kwh, hiv_eur, ete_eur, str(datetime.now()), facture_recue, "En cours"]
         sheet.append_row(row)
         return True
-    except: return False
+    except Exception as e: 
+        print(f"Détail de l'erreur : {e}")
+        return False
 
 # --- SESSION ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -321,3 +327,4 @@ elif menu == "4️⃣ Dossiers En Cours / Validés":
             else: st.dataframe(valides, use_container_width=True)
     else:
         st.write("Aucun dossier enregistré.")
+
