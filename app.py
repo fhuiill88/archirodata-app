@@ -3,7 +3,6 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import urllib.parse
 
 # --- CONFIGURATION INITIALE ---
 st.set_page_config(page_title="ArchiroData CRM", layout="wide", page_icon="⚡", initial_sidebar_state="collapsed")
@@ -15,7 +14,7 @@ USERS = {
     "staff2": "staff2"
 }
 
-# --- FONCTIONS SYSTÈME (Inchangées) ---
+# --- FONCTIONS SYSTÈME ---
 def get_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     if "gcp_service_account" in st.secrets:
@@ -48,157 +47,95 @@ def save_interaction(commercial, entreprise, ville, statut, note, contact_nom, c
         client = get_client()
         try: sheet = client.open("Data_Prospection_Energie").worksheet("Suivi_Commerciaux")
         except: sheet = client.open("Data_Prospection_Energie").add_worksheet("Suivi_Commerciaux", 1000, 10)
-        row = [str(datetime.now()), commercial, entreprise, ville, statut, note, contact_nom, contact_email]
+        row = [str(datetime.now()), str(commercial), str(entreprise), str(ville), str(statut), str(note), str(contact_nom), str(contact_email)]
         sheet.append_row(row)
-        return True
-    except: return False
+        return True, ""
+    except Exception as e: return False, str(e)
 
 def save_facture(commercial, client_nom, hiv_kwh, ete_kwh, hiv_eur, ete_eur, a_facture):
     try:
         client = get_client()
-        try: sheet = client.open("Data_Prospection_Energie").worksheet("Donnees_Factures")
-        except: sheet = client.open("Data_Prospection_Energie").add_worksheet("Donnees_Factures", 1000, 10)
+        doc = client.open("Data_Prospection_Energie")
+        try: 
+            sheet = doc.worksheet("Donnees_Factures")
+        except: 
+            sheet = doc.add_worksheet(title="Donnees_Factures", rows=1000, cols=10)
+        
         facture_recue = "OUI (PDF)" if a_facture else "NON"
-        row = [commercial, client_nom, hiv_kwh, ete_kwh, hiv_eur, ete_eur, str(datetime.now()), facture_recue, "En cours"]
+        # On convertit tout en string (texte) pour éviter que Google Sheets ne bloque l'insertion
+        row = [str(commercial), str(client_nom), str(hiv_kwh), str(ete_kwh), str(hiv_eur), str(ete_eur), str(datetime.now()), facture_recue, "En cours"]
         sheet.append_row(row)
-        return True
-    except: return False
+        return True, ""
+    except Exception as e: 
+        return False, str(e)
 
 # --- GESTION DE SESSION ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = None
 
 # ==============================================================================
-# 🌟 PAGE DE CONNEXION (DESIGN PREMIUM)
+# 🌟 PAGE DE CONNEXION
 # ==============================================================================
 if not st.session_state.logged_in:
-    # CSS Spécifique à la page de connexion
     st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-
-        /* Masquer l'interface par défaut de Streamlit */
-        [data-testid="collapsedControl"] { display: none; }
-        header { display: none !important; }
-        footer { display: none !important; }
+        /* Nettoyage de l'interface par défaut */
+        #MainMenu {visibility: hidden;}
+        header {visibility: hidden;}
+        footer {visibility: hidden;}
+        .stApp { background-color: #f4f7f6 !important; }
         
-        /* Fond de l'application */
-        .stApp {
-            background-color: #f4f7f6 !important;
-            font-family: 'Poppins', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
         /* Titre ArchiroData avec dégradé */
         .brand-title {
-            font-size: 3.2rem;
+            font-size: 3rem;
             font-weight: 800;
             text-align: center;
             background: linear-gradient(135deg, #0A192F 0%, #0052D4 50%, #4364F7 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 0px;
-            padding-bottom: 0px;
-            letter-spacing: -1px;
         }
-        
         .brand-subtitle {
             text-align: center;
             color: #64748b;
-            font-weight: 400;
             font-size: 1.1rem;
             margin-top: -10px;
-            margin-bottom: 35px;
-            letter-spacing: 0.5px;
+            margin-bottom: 30px;
         }
-
-        /* Personnalisation des champs de texte */
-        .stTextInput input {
-            border-radius: 8px !important;
-            border: 1px solid #e2e8f0 !important;
-            padding: 12px 16px !important;
-            font-size: 1rem !important;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.02) !important;
-        }
-        .stTextInput input:focus {
-            border-color: #0052D4 !important;
-            box-shadow: 0 0 0 2px rgba(0, 82, 212, 0.2) !important;
-        }
-
-        /* Bouton de connexion Premium */
-        .stButton>button {
-            background: linear-gradient(135deg, #0052D4, #4364F7) !important;
-            color: white !important;
-            border-radius: 8px !important;
-            border: none !important;
-            padding: 14px !important;
-            font-size: 1.1rem !important;
-            font-weight: 600 !important;
-            width: 100% !important;
-            transition: all 0.3s ease !important;
-            margin-top: 15px !important;
-            box-shadow: 0 4px 14px rgba(0, 82, 212, 0.3) !important;
-        }
-        .stButton>button:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 6px 20px rgba(0, 82, 212, 0.4) !important;
-        }
-        
-        /* Cacher les labels "Identifiant" au profit des placeholders */
-        .stTextInput label { display: none; }
         </style>
         """, unsafe_allow_html=True)
 
-    # Espacement pour centrer verticalement
     st.markdown("<br><br><br><br>", unsafe_allow_html=True)
     
-    # Structure de la carte centrée
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        # La "Carte" blanche
         with st.container(border=True):
-            st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
+            st.markdown("<h1 class='brand-title'>⚡ ArchiroData</h1>", unsafe_allow_html=True)
+            st.markdown("<p class='brand-subtitle'>Espace de travail sécurisé</p>", unsafe_allow_html=True)
             
-            # En-tête
-            st.markdown("""
-                <div style="text-align: center; margin-bottom: 10px;">
-                    <img src="https://cdn-icons-png.flaticon.com/512/2991/2991148.png" width="65" style="margin-bottom: 10px;">
-                </div>
-                <h1 class='brand-title'>ArchiroData</h1>
-                <p class='brand-subtitle'>Espace de travail sécurisé</p>
-                """, unsafe_allow_html=True)
+            u = st.text_input("Identifiant commercial")
+            p = st.text_input("Mot de passe", type="password")
             
-            # Formulaire
-            u = st.text_input("ID", placeholder="Identifiant commercial")
-            p = st.text_input("PASS", type="password", placeholder="Mot de passe")
-            
-            if st.button("Accéder au CRM"):
+            st.markdown("<br>", unsafe_allow_html=True)
+            # Utilisation de use_container_width=True et type="primary" pour forcer le design du bouton
+            if st.button("Accéder au CRM", use_container_width=True, type="primary"):
                 if u in USERS and USERS[u] == p:
                     st.session_state.logged_in = True
                     st.session_state.user = u
                     st.rerun()
                 else: 
-                    st.error("Identifiants incorrects. Veuillez réessayer.")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-    st.stop() # Empêche de charger le reste du code si pas connecté
+                    st.error("Identifiants incorrects.")
+    st.stop()
 
 # ==============================================================================
-# 🌟 APPLICATION PRINCIPALE (DESIGN CRM)
+# 🌟 APPLICATION PRINCIPALE (CRM)
 # ==============================================================================
-# CSS pour l'intérieur de l'application (différent de la page de login)
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
-    .stApp { background-color: #ffffff !important; color: #1f1f1f !important; font-family: 'Poppins', sans-serif; }
+    .stApp { background-color: #ffffff !important; color: #1f1f1f !important; }
     [data-testid="stSidebar"] { background-color: #f8f9fa !important; border-right: 1px solid #dee2e6; }
     [data-testid="stSidebar"] * { color: #1f1f1f !important; }
     [data-testid="stDataFrame"] { border: 1px solid #e0e0e0; border-radius: 5px; }
-    h1, h2, h3 { color: #0A192F; font-weight: 600; }
-    .stButton>button { background-color: #0052D4; color: white; border-radius: 6px; font-weight: 600; width: 100%; border: none;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -210,15 +147,8 @@ if not df_leads.empty and not df_suivi.empty:
     df_leads = df_leads.merge(last_status, left_on='Nom', right_on='Nom Entreprise', how='left').drop(columns=['Nom Entreprise'])
     df_leads['Statut'] = df_leads['Statut'].fillna('Nouveau')
 
-# Sidebar
 with st.sidebar:
-    st.markdown(f"""
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-            <img src="https://cdn-icons-png.flaticon.com/512/2991/2991148.png" width="30">
-            <span style="font-size: 20px; font-weight: 800; color: #0A192F;">ArchiroData</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
+    st.markdown("### ⚡ ArchiroData")
     st.markdown(f"👤 **{user.upper()}**")
     st.write("---")
     menu = st.radio("Pipeline de Vente", [
@@ -227,22 +157,20 @@ with st.sidebar:
         "3️⃣ Dossiers à Remplir", 
         "4️⃣ Dossiers En Cours / Validés"
     ])
-    
     st.write("---")
-    if st.button("Rafraîchir"):
+    if st.button("Rafraîchir", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-    if st.button("Déconnexion"):
+    if st.button("Déconnexion", use_container_width=True):
         st.session_state.logged_in = False
         st.rerun()
 
 # ------------------------------------------------------------------------------
-# SUITE DU CODE CRM (Le contenu des 4 onglets reste exactement le même qu'avant)
+# ONGLETS CRM
 # ------------------------------------------------------------------------------
 
 if menu == "1️⃣ Prospection (Tout)":
     st.subheader("📞 Liste Globale de Prospection")
-    st.caption("Cliquez sur une ligne pour ouvrir le rapport d'appel.")
     if not df_leads.empty:
         c1, c2 = st.columns(2)
         filtre_ville = c1.selectbox("Filtrer par Ville", ["Toutes"] + sorted(df_leads['Ville'].unique()))
@@ -255,8 +183,7 @@ if menu == "1️⃣ Prospection (Tout)":
         event = st.dataframe(df_show, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", height=400)
         
         if len(event.selection.rows) > 0:
-            idx = event.selection.rows[0]
-            lead = df_show.iloc[idx]
+            lead = df_show.iloc[event.selection.rows[0]]
             st.markdown("---")
             st.markdown(f"### 📞 Action : {lead['Nom']}")
             col_g, col_d = st.columns([1, 2])
@@ -268,11 +195,12 @@ if menu == "1️⃣ Prospection (Tout)":
                     note = st.text_area("Notes")
                     contact = st.text_input("Nom Contact")
                     email = st.text_input("Email Contact")
-                    if st.form_submit_button("💾 Enregistrer"):
-                        if save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, contact, email):
+                    if st.form_submit_button("💾 Enregistrer", type="primary"):
+                        success, err_msg = save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, contact, email)
+                        if success:
                             st.success("Enregistré !")
                             st.cache_data.clear()
-                        else: st.error("Erreur")
+                        else: st.error(f"Erreur technique : {err_msg}")
 
 elif menu == "2️⃣ À Rappeler (Urgent)":
     st.subheader("⏰ Liste de Rappel")
@@ -288,10 +216,12 @@ elif menu == "2️⃣ À Rappeler (Urgent)":
                 with st.form("rappel_form"):
                     new_statut = st.radio("Résultat", ["✅ Positif (Dossier à faire)", "❌ Négatif", "📵 Toujours pas de réponse"], horizontal=True)
                     note = st.text_input("Note")
-                    if st.form_submit_button("Mettre à jour"):
-                        save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, "", "")
-                        st.success("Mis à jour !")
-                        st.cache_data.clear()
+                    if st.form_submit_button("Mettre à jour", type="primary"):
+                        success, err_msg = save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, "", "")
+                        if success:
+                            st.success("Mis à jour !")
+                            st.cache_data.clear()
+                        else: st.error(f"Erreur : {err_msg}")
 
 elif menu == "3️⃣ Dossiers à Remplir":
     st.subheader("📝 Création de Dossiers")
@@ -317,11 +247,15 @@ elif menu == "3️⃣ Dossiers à Remplir":
                     with c1: hiv_kwh = st.text_input("Hiver kWh"); hiv_eur = st.text_input("Hiver €")
                     with c2: ete_kwh = st.text_input("Eté kWh"); ete_eur = st.text_input("Eté €")
                     uploaded_file = st.file_uploader("Facture PDF", type=['pdf', 'jpg', 'png'])
-                    if st.form_submit_button("✅ Valider"):
-                        if save_facture(user, nom_client, hiv_kwh, ete_kwh, hiv_eur, ete_eur, uploaded_file is not None):
-                            st.success("Dossier envoyé !")
+                    
+                    if st.form_submit_button("✅ Valider le Dossier", type="primary"):
+                        # Capture de la réponse pour afficher la véritable erreur
+                        success, err_msg = save_facture(user, nom_client, hiv_kwh, ete_kwh, hiv_eur, ete_eur, uploaded_file is not None)
+                        if success:
+                            st.success("Dossier envoyé avec succès !")
                             st.cache_data.clear()
-                        else: st.error("Erreur")
+                        else: 
+                            st.error(f"L'enregistrement a échoué. Cause : {err_msg}")
 
 elif menu == "4️⃣ Dossiers En Cours / Validés":
     st.subheader("🚀 Suivi des Dossiers")
