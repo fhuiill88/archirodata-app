@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
 # --- CONFIGURATION INITIALE ---
-st.set_page_config(page_title="ArchiroData CRM", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="ArchiroData Enterprise", layout="wide", initial_sidebar_state="collapsed")
 
 # --- IDENTIFIANTS ---
 USERS = {
@@ -72,36 +72,42 @@ def save_facture(commercial, client_nom, hiv_kwh, ete_kwh, hiv_eur, ete_eur, a_f
 # --- GESTION DE SESSION ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = None
+if 'current_app' not in st.session_state: st.session_state.current_app = "hub" # "hub" ou "crm"
+
+# --- STYLE GLOBAL INVISIBLE ---
+st.markdown("""
+    <style>
+    [data-testid="collapsedControl"] { display: none; }
+    section[data-testid="stSidebar"] { display: none; }
+    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
+    .stApp { background-color: #f8fafc !important; color: #0f172a !important; font-family: 'Inter', sans-serif; }
+    .stButton>button { background-color: #2563eb; color: white; border-radius: 6px; font-weight: 500; border: none;}
+    .stButton>button:hover { background-color: #1d4ed8; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ==============================================================================
-# PAGE DE CONNEXION (Restée Premium)
+# 1. PAGE DE CONNEXION
 # ==============================================================================
 if not st.session_state.logged_in:
     st.markdown("""
         <style>
-        #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-        [data-testid="collapsedControl"] { display: none; }
-        section[data-testid="stSidebar"] { display: none; }
-        .stApp { background-color: #f8fafc !important; font-family: 'Inter', sans-serif; }
         .brand-title {
             font-size: 3rem; font-weight: 800; text-align: center;
             background: linear-gradient(135deg, #0f172a 0%, #2563eb 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            margin-bottom: 0px;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0px;
         }
         .brand-subtitle { text-align: center; color: #64748b; font-size: 1.1rem; margin-top: -10px; margin-bottom: 30px; }
         .stTextInput input { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; padding: 12px 16px !important; }
-        .stButton>button { background: linear-gradient(135deg, #2563eb, #1d4ed8) !important; color: white !important; border-radius: 8px !important; border: none !important; padding: 12px !important; font-weight: 600 !important; }
         </style>
         """, unsafe_allow_html=True)
 
     st.markdown("<br><br><br><br>", unsafe_allow_html=True)
-    
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         with st.container(border=True):
             st.markdown("<h1 class='brand-title'>ArchiroData</h1>", unsafe_allow_html=True)
-            st.markdown("<p class='brand-subtitle'>Plateforme de gestion commerciale</p>", unsafe_allow_html=True)
+            st.markdown("<p class='brand-subtitle'>Plateforme de gestion d'entreprise</p>", unsafe_allow_html=True)
             u = st.text_input("Identifiant", placeholder="Entrez votre identifiant")
             p = st.text_input("Mot de passe", type="password", placeholder="Entrez votre mot de passe")
             st.markdown("<br>", unsafe_allow_html=True)
@@ -109,222 +115,231 @@ if not st.session_state.logged_in:
                 if u in USERS and USERS[u] == p:
                     st.session_state.logged_in = True
                     st.session_state.user = u
+                    st.session_state.current_app = "hub" # Redirige vers le portail
                     st.rerun()
                 else: 
                     st.error("Identifiants incorrects.")
     st.stop()
 
 # ==============================================================================
-# APPLICATION PRINCIPALE (NOUVEAU DESIGN SANS SIDEBAR)
+# 2. LE PORTAIL D'APPLICATIONS (HUB)
 # ==============================================================================
-st.markdown("""
-    <style>
-    /* Masquer la sidebar et les éléments par défaut */
-    [data-testid="collapsedControl"] { display: none; }
-    section[data-testid="stSidebar"] { display: none; }
-    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-    
-    /* Couleurs et polices générales */
-    .stApp { background-color: #f8fafc !important; color: #0f172a !important; font-family: 'Inter', sans-serif; }
-    h1, h2, h3 { color: #0f172a; font-weight: 600; }
-    
-    /* Style du menu de navigation du haut (Radio buttons stylisés) */
-    div.row-widget.stRadio > div { flex-direction: row; justify-content: center; background-color: #ffffff; padding: 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; margin-bottom: 20px;}
-    div.row-widget.stRadio > div > label { background-color: transparent; padding: 10px 20px; border-radius: 6px; margin: 0 5px; cursor: pointer; transition: all 0.2s;}
-    
-    /* Style des conteneurs (Cartes flottantes) */
-    [data-testid="stVerticalBlockBorderWrapper"] { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; padding: 10px;}
-    
-    /* Boutons standards */
-    .stButton>button { background-color: #2563eb; color: white; border-radius: 6px; font-weight: 500; border: none;}
-    .stButton>button:hover { background-color: #1d4ed8; }
-    
-    /* Cartes de KPI (Indicateurs) */
-    div[data-testid="stMetric"] { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-    </style>
-    """, unsafe_allow_html=True)
-
-user = st.session_state.user
-df_leads, df_suivi, df_factures = load_all_data()
-
-# Traitement des données
-if not df_leads.empty and not df_suivi.empty:
-    last_status = df_suivi.drop_duplicates(subset=['Nom Entreprise'], keep='last')[['Nom Entreprise', 'Statut']]
-    df_leads = df_leads.merge(last_status, left_on='Nom', right_on='Nom Entreprise', how='left').drop(columns=['Nom Entreprise'])
-    df_leads['Statut'] = df_leads['Statut'].fillna('Nouveau')
-
-# --- EN-TÊTE / TOP BAR ---
-col_logo, col_user = st.columns([4, 1])
-with col_logo:
-    st.markdown("<h2 style='margin-top: 0; color: #1e293b; font-weight: 800;'>ArchiroData</h2>", unsafe_allow_html=True)
-with col_user:
-    st.markdown(f"<div style='text-align: right; margin-top: 10px; font-weight: 500;'>Utilisateur : {user.upper()}</div>", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Actualiser", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-    with c2:
-        if st.button("Quitter", use_container_width=True):
+if st.session_state.logged_in and st.session_state.current_app == "hub":
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_titre, col_logout = st.columns([4, 1])
+    with col_titre:
+        st.markdown(f"<h2 style='color: #0f172a;'>Bienvenue, {st.session_state.user.upper()}</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #64748b; font-size: 1.1rem;'>Sélectionnez une application pour commencer votre session.</p>", unsafe_allow_html=True)
+    with col_logout:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Se déconnecter", use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
 
-st.markdown("---")
-
-# --- KPI / TABLEAU DE BORD RAPIDE ---
-# Calculs rapides pour le dashboard
-total_leads = len(df_leads) if not df_leads.empty else 0
-dossiers_gagnes = len(df_suivi[df_suivi['Statut'].str.contains("Positif", case=False, na=False)]) if not df_suivi.empty else 0
-dossiers_en_cours = len(df_factures[df_factures['Etat_Dossier'] == "En cours"]) if not df_factures.empty else 0
-
-m1, m2, m3 = st.columns(3)
-m1.metric("Base de prospection", f"{total_leads} cibles")
-m2.metric("Dossiers positifs (Historique)", dossiers_gagnes)
-m3.metric("Dossiers en attente de validation", dossiers_en_cours)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- NAVIGATION PRINCIPALE (Le nouveau menu du haut) ---
-menu = st.radio("Navigation", [
-    "Prospection globale", 
-    "Rappels urgents", 
-    "Dossiers a remplir", 
-    "Suivi des dossiers"
-], horizontal=True, label_visibility="collapsed")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ------------------------------------------------------------------------------
-# CONTENU DES ONGLETS
-# ------------------------------------------------------------------------------
-
-if menu == "Prospection globale":
-    st.subheader("Base de données de prospection")
-    if not df_leads.empty:
-        c1, c2 = st.columns(2)
-        filtre_ville = c1.selectbox("Filtrer par Ville", ["Toutes"] + sorted(df_leads['Ville'].unique()))
-        filtre_secteur = c2.selectbox("Filtrer par Secteur", ["Tous"] + sorted(df_leads['Secteur'].unique()))
-        
-        df_show = df_leads.copy()
-        if filtre_ville != "Toutes": df_show = df_show[df_show['Ville'] == filtre_ville]
-        if filtre_secteur != "Tous": df_show = df_show[df_show['Secteur'] == filtre_secteur]
-        
-        event = st.dataframe(df_show, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", height=350)
-        
-        if len(event.selection.rows) > 0:
-            lead = df_show.iloc[event.selection.rows[0]]
-            st.markdown("---")
-            st.markdown(f"### Fiche Prospect : {lead['Nom']}")
+    st.markdown("---")
+    
+    # Grille d'applications (Ici on n'en a qu'une pour l'instant)
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        with st.container(border=True):
+            st.markdown("<div style='padding: 10px;'>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color: #2563eb; margin-bottom: 5px;'>Data Prospection</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='color: #64748b; font-size: 0.95rem; height: 60px;'>Outil CRM dédié à la gestion des leads énergétiques, suivis d'appels et facturation.</p>", unsafe_allow_html=True)
+            if st.button("Ouvrir l'application", use_container_width=True, type="primary"):
+                st.session_state.current_app = "crm"
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
             
-            with st.container(border=True):
-                col_g, col_d = st.columns([1, 2])
-                with col_g:
-                    st.markdown("**Informations de contact**")
-                    st.write(f"Adresse : {lead['Adresse']}")
-                    st.write(f"Standard : {lead['Téléphone']}")
-                    st.write(f"Mobile : {lead['Mobile']}")
-                    st.write(f"Statut actuel : {lead.get('Statut', 'Nouveau')}")
-                with col_d:
-                    with st.form("call_form"):
-                        st.markdown("**Saisie du rapport d'appel**")
-                        # Valeurs nettoyées (sans emojis) pour la nouvelle base
-                        new_statut = st.radio("Résultat de l'appel", ["En attente", "Positif", "Negatif", "Pas de reponse", "A rappeler"], horizontal=True)
-                        note = st.text_area("Compte-rendu")
-                        contact = st.text_input("Nom du décisionnaire")
-                        email = st.text_input("Email du décisionnaire")
-                        if st.form_submit_button("Enregistrer le rapport", type="primary"):
-                            success, err_msg = save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, contact, email)
-                            if success:
-                                st.success("Rapport enregistré avec succès.")
-                                st.cache_data.clear()
-                            else: st.error(f"Erreur technique : {err_msg}")
+    # Les autres colonnes sont vides pour l'instant, prêtes pour le futur !
+    st.stop()
 
-elif menu == "Rappels urgents":
-    st.subheader("Liste des rappels programmés")
-    if not df_leads.empty:
-        # On garde les anciens statuts avec emojis au cas où, pour ne pas perdre les vieilles données
-        df_rappel = df_leads[df_leads['Statut'].isin(["Pas de reponse", "A rappeler", "En attente", "📵 Pas de réponse", "⏰ A rappeler", "⏳ En attente"])]
-        if df_rappel.empty: 
-            st.info("Aucun rappel en attente.")
-        else:
-            event = st.dataframe(df_rappel, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
-            if len(event.selection.rows) > 0:
-                lead = df_rappel.iloc[event.selection.rows[0]]
-                st.markdown("---")
-                st.markdown(f"### Mise à jour : {lead['Nom']}")
-                with st.container(border=True):
-                    with st.form("rappel_form"):
-                        new_statut = st.radio("Nouveau statut", ["Positif", "Negatif", "Pas de reponse", "A rappeler"], horizontal=True)
-                        note = st.text_input("Nouvelle note additionnelle")
-                        if st.form_submit_button("Actualiser le dossier", type="primary"):
-                            success, err_msg = save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, "", "")
-                            if success:
-                                st.success("Dossier actualisé.")
-                                st.cache_data.clear()
-                            else: st.error(f"Erreur : {err_msg}")
+# ==============================================================================
+# 3. APPLICATION : DATA PROSPECTION (CRM)
+# ==============================================================================
+if st.session_state.logged_in and st.session_state.current_app == "crm":
+    user = st.session_state.user
+    df_leads, df_suivi, df_factures = load_all_data()
 
-elif menu == "Dossiers a remplir":
-    st.subheader("Finalisation des dossiers clients")
-    if not df_suivi.empty:
-        positifs = df_suivi[df_suivi['Statut'].str.contains("Positif", case=False, na=False)]
-        if not df_factures.empty:
-            deja_fait = df_factures['Client'].unique().tolist()
-            a_faire = positifs[~positifs['Nom Entreprise'].isin(deja_fait)]
-        else: a_faire = positifs
+    if not df_leads.empty and not df_suivi.empty:
+        last_status = df_suivi.drop_duplicates(subset=['Nom Entreprise'], keep='last')[['Nom Entreprise', 'Statut']]
+        df_leads = df_leads.merge(last_status, left_on='Nom', right_on='Nom Entreprise', how='left').drop(columns=['Nom Entreprise'])
+        df_leads['Statut'] = df_leads['Statut'].fillna('Nouveau')
+
+    # --- EN-TÊTE DU CRM ---
+    col_logo, col_menu, col_actions = st.columns([1.5, 2, 1])
+    with col_logo:
+        st.markdown("<h2 style='margin-top: 5px; color: #1e293b; font-weight: 800;'>Data Prospection</h2>", unsafe_allow_html=True)
+    
+    with col_menu:
+        # LE NOUVEAU MENU DÉROULANT
+        menu = st.selectbox("Navigation du module :", [
+            "Prospection globale", 
+            "Rappels urgents", 
+            "Dossiers a remplir", 
+            "Suivi des dossiers"
+        ], label_visibility="collapsed")
         
-        a_faire = a_faire.drop_duplicates(subset=['Nom Entreprise'])
-        
-        if a_faire.empty: 
-            st.info("Aucun prospect en attente de facturation.")
-        else:
-            event = st.dataframe(a_faire[['Date', 'Nom Entreprise', 'Ville', 'Note']], use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
+    with col_actions:
+        c_retour, c_maj = st.columns(2)
+        with c_retour:
+            if st.button("Accueil", use_container_width=True):
+                st.session_state.current_app = "hub"
+                st.rerun()
+        with c_maj:
+            if st.button("Actualiser", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
+
+    st.markdown("---")
+
+    # --- KPI / TABLEAU DE BORD RAPIDE ---
+    total_leads = len(df_leads) if not df_leads.empty else 0
+    dossiers_gagnes = len(df_suivi[df_suivi['Statut'].str.contains("Positif", case=False, na=False)]) if not df_suivi.empty else 0
+    dossiers_en_cours = len(df_factures[df_factures['Etat_Dossier'] == "En cours"]) if not df_factures.empty else 0
+
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        with st.container(border=True):
+            st.metric("Base de prospection", f"{total_leads} cibles")
+    with m2:
+        with st.container(border=True):
+            st.metric("Dossiers positifs", dossiers_gagnes)
+    with m3:
+        with st.container(border=True):
+            st.metric("Dossiers en attente", dossiers_en_cours)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ------------------------------------------------------------------------------
+    # CONTENU DES VUES (Selon le menu déroulant)
+    # ------------------------------------------------------------------------------
+
+    if menu == "Prospection globale":
+        st.subheader("Base de données de prospection")
+        if not df_leads.empty:
+            c1, c2 = st.columns(2)
+            filtre_ville = c1.selectbox("Filtrer par Ville", ["Toutes"] + sorted(df_leads['Ville'].unique()))
+            filtre_secteur = c2.selectbox("Filtrer par Secteur", ["Tous"] + sorted(df_leads['Secteur'].unique()))
+            
+            df_show = df_leads.copy()
+            if filtre_ville != "Toutes": df_show = df_show[df_show['Ville'] == filtre_ville]
+            if filtre_secteur != "Tous": df_show = df_show[df_show['Secteur'] == filtre_secteur]
+            
+            event = st.dataframe(df_show, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", height=350)
+            
             if len(event.selection.rows) > 0:
-                client = a_faire.iloc[event.selection.rows[0]]
-                nom_client = client['Nom Entreprise']
+                lead = df_show.iloc[event.selection.rows[0]]
                 st.markdown("---")
-                st.markdown(f"### Saisie des données : {nom_client}")
+                st.markdown(f"### Fiche Prospect : {lead['Nom']}")
                 
                 with st.container(border=True):
-                    with st.form("dossier_form"):
-                        c1, c2 = st.columns(2)
-                        with c1: 
-                            st.markdown("**Période Hivernale**")
-                            hiv_kwh = st.text_input("Consommation (kWh)")
-                            hiv_eur = st.text_input("Montant HT/TTC (€)")
-                        with c2: 
-                            st.markdown("**Période Estivale**")
-                            ete_kwh = st.text_input("Consommation (kWh) ")
-                            ete_eur = st.text_input("Montant HT/TTC (€) ")
-                        
-                        st.markdown("**Pièces justificatives**")
-                        uploaded_file = st.file_uploader("Importer la facture (PDF, JPG)", type=['pdf', 'jpg', 'png'])
-                        
-                        if st.form_submit_button("Transmettre le dossier", type="primary"):
-                            try:
-                                success, err_msg = save_facture(user, nom_client, hiv_kwh, ete_kwh, hiv_eur, ete_eur, uploaded_file is not None)
+                    col_g, col_d = st.columns([1, 2])
+                    with col_g:
+                        st.markdown("**Informations de contact**")
+                        st.write(f"Adresse : {lead['Adresse']}")
+                        st.write(f"Standard : {lead['Téléphone']}")
+                        st.write(f"Mobile : {lead['Mobile']}")
+                        st.write(f"Statut actuel : {lead.get('Statut', 'Nouveau')}")
+                    with col_d:
+                        with st.form("call_form"):
+                            st.markdown("**Saisie du rapport d'appel**")
+                            new_statut = st.radio("Résultat de l'appel", ["En attente", "Positif", "Negatif", "Pas de reponse", "A rappeler"], horizontal=True)
+                            note = st.text_area("Compte-rendu")
+                            contact = st.text_input("Nom du décisionnaire")
+                            email = st.text_input("Email du décisionnaire")
+                            if st.form_submit_button("Enregistrer le rapport", type="primary"):
+                                success, err_msg = save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, contact, email)
                                 if success:
-                                    st.success("Le dossier a été transmis au service d'administration.")
+                                    st.success("Rapport enregistré avec succès.")
                                     st.cache_data.clear()
-                                else: 
-                                    st.error(f"Erreur lors de la transmission : {err_msg}")
-                            except Exception as e:
-                                st.error(f"Erreur système : {e}")
+                                else: st.error(f"Erreur technique : {err_msg}")
 
-elif menu == "Suivi des dossiers":
-    st.subheader("Suivi administratif")
-    if not df_factures.empty:
-        tab1, tab2 = st.tabs(["Dossiers en cours de traitement", "Dossiers validés"])
-        with tab1:
-            encours = df_factures[df_factures['Etat_Dossier'] == "En cours"]
-            if encours.empty: 
-                st.info("Aucun dossier en cours d'analyse.")
-            else: 
-                st.dataframe(encours, use_container_width=True)
-        with tab2:
-            valides = df_factures[df_factures['Etat_Dossier'] == "Validé"]
-            if valides.empty: 
-                st.info("Aucun dossier validé pour le moment.")
-            else: 
-                st.dataframe(valides, use_container_width=True)
-    else: 
-        st.write("L'historique des dossiers est vide.")
+    elif menu == "Rappels urgents":
+        st.subheader("Liste des rappels programmés")
+        if not df_leads.empty:
+            df_rappel = df_leads[df_leads['Statut'].isin(["Pas de reponse", "A rappeler", "En attente"])]
+            if df_rappel.empty: 
+                st.info("Aucun rappel en attente.")
+            else:
+                event = st.dataframe(df_rappel, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
+                if len(event.selection.rows) > 0:
+                    lead = df_rappel.iloc[event.selection.rows[0]]
+                    st.markdown("---")
+                    st.markdown(f"### Mise à jour : {lead['Nom']}")
+                    with st.container(border=True):
+                        with st.form("rappel_form"):
+                            new_statut = st.radio("Nouveau statut", ["Positif", "Negatif", "Pas de reponse", "A rappeler"], horizontal=True)
+                            note = st.text_input("Nouvelle note additionnelle")
+                            if st.form_submit_button("Actualiser le dossier", type="primary"):
+                                success, err_msg = save_interaction(user, lead['Nom'], lead['Ville'], new_statut, note, "", "")
+                                if success:
+                                    st.success("Dossier actualisé.")
+                                    st.cache_data.clear()
+                                else: st.error(f"Erreur : {err_msg}")
+
+    elif menu == "Dossiers a remplir":
+        st.subheader("Finalisation des dossiers clients")
+        if not df_suivi.empty:
+            positifs = df_suivi[df_suivi['Statut'].str.contains("Positif", case=False, na=False)]
+            if not df_factures.empty:
+                deja_fait = df_factures['Client'].unique().tolist()
+                a_faire = positifs[~positifs['Nom Entreprise'].isin(deja_fait)]
+            else: a_faire = positifs
+            
+            a_faire = a_faire.drop_duplicates(subset=['Nom Entreprise'])
+            
+            if a_faire.empty: 
+                st.info("Aucun prospect en attente de facturation.")
+            else:
+                event = st.dataframe(a_faire[['Date', 'Nom Entreprise', 'Ville', 'Note']], use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
+                if len(event.selection.rows) > 0:
+                    client = a_faire.iloc[event.selection.rows[0]]
+                    nom_client = client['Nom Entreprise']
+                    st.markdown("---")
+                    st.markdown(f"### Saisie des données : {nom_client}")
+                    
+                    with st.container(border=True):
+                        with st.form("dossier_form"):
+                            c1, c2 = st.columns(2)
+                            with c1: 
+                                st.markdown("**Période Hivernale**")
+                                hiv_kwh = st.text_input("Consommation (kWh)")
+                                hiv_eur = st.text_input("Montant HT/TTC (€)")
+                            with c2: 
+                                st.markdown("**Période Estivale**")
+                                ete_kwh = st.text_input("Consommation (kWh) ")
+                                ete_eur = st.text_input("Montant HT/TTC (€) ")
+                            
+                            st.markdown("**Pièces justificatives**")
+                            uploaded_file = st.file_uploader("Importer la facture (PDF, JPG)", type=['pdf', 'jpg', 'png'])
+                            
+                            if st.form_submit_button("Transmettre le dossier", type="primary"):
+                                try:
+                                    success, err_msg = save_facture(user, nom_client, hiv_kwh, ete_kwh, hiv_eur, ete_eur, uploaded_file is not None)
+                                    if success:
+                                        st.success("Le dossier a été transmis au service d'administration.")
+                                        st.cache_data.clear()
+                                    else: 
+                                        st.error(f"Erreur lors de la transmission : {err_msg}")
+                                except Exception as e:
+                                    st.error(f"Erreur système : {e}")
+
+    elif menu == "Suivi des dossiers":
+        st.subheader("Suivi administratif")
+        if not df_factures.empty:
+            tab1, tab2 = st.tabs(["Dossiers en cours de traitement", "Dossiers validés"])
+            with tab1:
+                encours = df_factures[df_factures['Etat_Dossier'] == "En cours"]
+                if encours.empty: 
+                    st.info("Aucun dossier en cours d'analyse.")
+                else: 
+                    st.dataframe(encours, use_container_width=True)
+            with tab2:
+                valides = df_factures[df_factures['Etat_Dossier'] == "Validé"]
+                if valides.empty: 
+                    st.info("Aucun dossier validé pour le moment.")
+                else: 
+                    st.dataframe(valides, use_container_width=True)
+        else: 
+            st.write("L'historique des dossiers est vide.")
