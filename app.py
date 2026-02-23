@@ -72,17 +72,75 @@ def save_facture(commercial, client_nom, hiv_kwh, ete_kwh, hiv_eur, ete_eur, a_f
 # --- GESTION DE SESSION ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = None
-if 'current_app' not in st.session_state: st.session_state.current_app = "hub" # "hub" ou "crm"
+if 'current_app' not in st.session_state: st.session_state.current_app = "hub"
 
-# --- STYLE GLOBAL INVISIBLE ---
+# ==============================================================================
+# 🎨 TEMPLATE VISUEL (GRIS/BLANC + RAYURES)
+# ==============================================================================
 st.markdown("""
     <style>
+    /* Nettoyage de l'interface par défaut */
     [data-testid="collapsedControl"] { display: none; }
     section[data-testid="stSidebar"] { display: none; }
     #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-    .stApp { background-color: #f8fafc !important; color: #0f172a !important; font-family: 'Inter', sans-serif; }
-    .stButton>button { background-color: #2563eb; color: white; border-radius: 6px; font-weight: 500; border: none;}
-    .stButton>button:hover { background-color: #1d4ed8; }
+    
+    /* 1. FOND GLOBAL : Mélange gris/blanc avec rayures diagonales élégantes */
+    .stApp { 
+        background-color: #f1f5f9 !important; 
+        background-image: repeating-linear-gradient(
+            45deg,
+            #f8fafc,
+            #f8fafc 20px,
+            #f1f5f9 20px,
+            #f1f5f9 40px
+        ) !important;
+        color: #1e293b !important; 
+        font-family: 'Inter', sans-serif; 
+    }
+
+    /* 2. CARTES ET CONTENEURS : Blanc pur pour faire ressortir l'information */
+    [data-testid="stVerticalBlockBorderWrapper"], 
+    div[data-testid="stMetric"], 
+    div[data-testid="stForm"] { 
+        background-color: #ffffff !important; 
+        border: 1px solid #cbd5e1 !important; 
+        border-radius: 12px !important; 
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03) !important; 
+        padding: 15px;
+    }
+
+    /* 3. TYPOGRAPHIE ET TITRES */
+    h1, h2, h3, p { color: #0f172a; }
+    
+    .brand-title {
+        font-size: 3rem; font-weight: 800; text-align: center;
+        background: linear-gradient(135deg, #0f172a 0%, #3b82f6 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0px;
+    }
+    .brand-subtitle { text-align: center; color: #64748b; font-size: 1.1rem; margin-top: -10px; margin-bottom: 30px; }
+
+    /* 4. BOUTONS : Style moderne */
+    .stButton>button { 
+        background-color: #334155 !important; 
+        color: white !important; 
+        border-radius: 8px !important; 
+        font-weight: 600 !important; 
+        border: none !important;
+        transition: all 0.2s ease;
+    }
+    .stButton>button:hover { background-color: #0f172a !important; transform: translateY(-1px); }
+    
+    /* Boutons Principaux (Bleus) */
+    button[data-testid="baseButton-primary"] { background-color: #2563eb !important; }
+    button[data-testid="baseButton-primary"]:hover { background-color: #1d4ed8 !important; }
+
+    /* 5. CHAMPS DE SAISIE : Fond très légèrement gris pour se détacher du blanc */
+    .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] { 
+        border-radius: 8px !important; 
+        border: 1px solid #cbd5e1 !important; 
+        background-color: #f8fafc !important; 
+        padding: 10px !important; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -90,18 +148,6 @@ st.markdown("""
 # 1. PAGE DE CONNEXION
 # ==============================================================================
 if not st.session_state.logged_in:
-    st.markdown("""
-        <style>
-        .brand-title {
-            font-size: 3rem; font-weight: 800; text-align: center;
-            background: linear-gradient(135deg, #0f172a 0%, #2563eb 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0px;
-        }
-        .brand-subtitle { text-align: center; color: #64748b; font-size: 1.1rem; margin-top: -10px; margin-bottom: 30px; }
-        .stTextInput input { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; padding: 12px 16px !important; }
-        </style>
-        """, unsafe_allow_html=True)
-
     st.markdown("<br><br><br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
@@ -115,7 +161,7 @@ if not st.session_state.logged_in:
                 if u in USERS and USERS[u] == p:
                     st.session_state.logged_in = True
                     st.session_state.user = u
-                    st.session_state.current_app = "hub" # Redirige vers le portail
+                    st.session_state.current_app = "hub"
                     st.rerun()
                 else: 
                     st.error("Identifiants incorrects.")
@@ -128,7 +174,7 @@ if st.session_state.logged_in and st.session_state.current_app == "hub":
     st.markdown("<br>", unsafe_allow_html=True)
     col_titre, col_logout = st.columns([4, 1])
     with col_titre:
-        st.markdown(f"<h2 style='color: #0f172a;'>Bienvenue, {st.session_state.user.upper()}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2>Bienvenue, {st.session_state.user.upper()}</h2>", unsafe_allow_html=True)
         st.markdown("<p style='color: #64748b; font-size: 1.1rem;'>Sélectionnez une application pour commencer votre session.</p>", unsafe_allow_html=True)
     with col_logout:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -138,20 +184,14 @@ if st.session_state.logged_in and st.session_state.current_app == "hub":
 
     st.markdown("---")
     
-    # Grille d'applications (Ici on n'en a qu'une pour l'instant)
     c1, c2, c3 = st.columns(3)
-    
     with c1:
         with st.container(border=True):
-            st.markdown("<div style='padding: 10px;'>", unsafe_allow_html=True)
             st.markdown("<h3 style='color: #2563eb; margin-bottom: 5px;'>Data Prospection</h3>", unsafe_allow_html=True)
             st.markdown("<p style='color: #64748b; font-size: 0.95rem; height: 60px;'>Outil CRM dédié à la gestion des leads énergétiques, suivis d'appels et facturation.</p>", unsafe_allow_html=True)
             if st.button("Ouvrir l'application", use_container_width=True, type="primary"):
                 st.session_state.current_app = "crm"
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-    # Les autres colonnes sont vides pour l'instant, prêtes pour le futur !
     st.stop()
 
 # ==============================================================================
@@ -167,31 +207,27 @@ if st.session_state.logged_in and st.session_state.current_app == "crm":
         df_leads['Statut'] = df_leads['Statut'].fillna('Nouveau')
 
     # --- EN-TÊTE DU CRM ---
-    col_logo, col_menu, col_actions = st.columns([1.5, 2, 1])
-    with col_logo:
-        st.markdown("<h2 style='margin-top: 5px; color: #1e293b; font-weight: 800;'>Data Prospection</h2>", unsafe_allow_html=True)
-    
-    with col_menu:
-        # LE NOUVEAU MENU DÉROULANT
-        menu = st.selectbox("Navigation du module :", [
-            "Prospection globale", 
-            "Rappels urgents", 
-            "Dossiers a remplir", 
-            "Suivi des dossiers"
-        ], label_visibility="collapsed")
-        
-    with col_actions:
-        c_retour, c_maj = st.columns(2)
-        with c_retour:
-            if st.button("Accueil", use_container_width=True):
-                st.session_state.current_app = "hub"
-                st.rerun()
-        with c_maj:
-            if st.button("Actualiser", use_container_width=True):
-                st.cache_data.clear()
-                st.rerun()
-
-    st.markdown("---")
+    with st.container(border=True):
+        col_logo, col_menu, col_actions = st.columns([1.5, 2, 1])
+        with col_logo:
+            st.markdown("<h3 style='margin-top: 5px; color: #1e293b; font-weight: 800;'>Data Prospection</h3>", unsafe_allow_html=True)
+        with col_menu:
+            menu = st.selectbox("Navigation du module :", [
+                "Prospection globale", 
+                "Rappels urgents", 
+                "Dossiers a remplir", 
+                "Suivi des dossiers"
+            ], label_visibility="collapsed")
+        with col_actions:
+            c_retour, c_maj = st.columns(2)
+            with c_retour:
+                if st.button("Accueil", use_container_width=True):
+                    st.session_state.current_app = "hub"
+                    st.rerun()
+            with c_maj:
+                if st.button("Actualiser", use_container_width=True):
+                    st.cache_data.clear()
+                    st.rerun()
 
     # --- KPI / TABLEAU DE BORD RAPIDE ---
     total_leads = len(df_leads) if not df_leads.empty else 0
@@ -199,38 +235,33 @@ if st.session_state.logged_in and st.session_state.current_app == "crm":
     dossiers_en_cours = len(df_factures[df_factures['Etat_Dossier'] == "En cours"]) if not df_factures.empty else 0
 
     m1, m2, m3 = st.columns(3)
-    with m1:
-        with st.container(border=True):
-            st.metric("Base de prospection", f"{total_leads} cibles")
-    with m2:
-        with st.container(border=True):
-            st.metric("Dossiers positifs", dossiers_gagnes)
-    with m3:
-        with st.container(border=True):
-            st.metric("Dossiers en attente", dossiers_en_cours)
+    m1.metric("Base de prospection", f"{total_leads} cibles")
+    m2.metric("Dossiers positifs", dossiers_gagnes)
+    m3.metric("Dossiers en attente", dossiers_en_cours)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ------------------------------------------------------------------------------
-    # CONTENU DES VUES (Selon le menu déroulant)
+    # CONTENU DES VUES
     # ------------------------------------------------------------------------------
 
     if menu == "Prospection globale":
-        st.subheader("Base de données de prospection")
         if not df_leads.empty:
-            c1, c2 = st.columns(2)
-            filtre_ville = c1.selectbox("Filtrer par Ville", ["Toutes"] + sorted(df_leads['Ville'].unique()))
-            filtre_secteur = c2.selectbox("Filtrer par Secteur", ["Tous"] + sorted(df_leads['Secteur'].unique()))
+            with st.container(border=True):
+                st.markdown("#### Filtres de recherche")
+                c1, c2 = st.columns(2)
+                filtre_ville = c1.selectbox("Ville", ["Toutes"] + sorted(df_leads['Ville'].unique()))
+                filtre_secteur = c2.selectbox("Secteur", ["Tous"] + sorted(df_leads['Secteur'].unique()))
             
             df_show = df_leads.copy()
             if filtre_ville != "Toutes": df_show = df_show[df_show['Ville'] == filtre_ville]
             if filtre_secteur != "Tous": df_show = df_show[df_show['Secteur'] == filtre_secteur]
             
+            st.markdown("#### Liste des entreprises")
             event = st.dataframe(df_show, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", height=350)
             
             if len(event.selection.rows) > 0:
                 lead = df_show.iloc[event.selection.rows[0]]
-                st.markdown("---")
                 st.markdown(f"### Fiche Prospect : {lead['Nom']}")
                 
                 with st.container(border=True):
@@ -265,7 +296,6 @@ if st.session_state.logged_in and st.session_state.current_app == "crm":
                 event = st.dataframe(df_rappel, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
                 if len(event.selection.rows) > 0:
                     lead = df_rappel.iloc[event.selection.rows[0]]
-                    st.markdown("---")
                     st.markdown(f"### Mise à jour : {lead['Nom']}")
                     with st.container(border=True):
                         with st.form("rappel_form"):
@@ -296,7 +326,6 @@ if st.session_state.logged_in and st.session_state.current_app == "crm":
                 if len(event.selection.rows) > 0:
                     client = a_faire.iloc[event.selection.rows[0]]
                     nom_client = client['Nom Entreprise']
-                    st.markdown("---")
                     st.markdown(f"### Saisie des données : {nom_client}")
                     
                     with st.container(border=True):
